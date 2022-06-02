@@ -1,6 +1,3 @@
-import { HttpService } from '@nestjs/axios';
-import { lastValueFrom, map } from 'rxjs';
-
 export class Advertisement {
   constructor(private tweetURL: string, private expireDate: Date) {
     this.tweetURL = tweetURL;
@@ -16,31 +13,66 @@ export class Advertisement {
   }
 
   public async register(): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { GoogleSpreadsheet } = require('google-spreadsheet');
+    const credential = Advertisement.credential();
+    const spreadsheet = new GoogleSpreadsheet(process.env.SS_FILE_ID);
+    spreadsheet.useServiceAccountAuth(credential);
+
+    await spreadsheet.loadInfo();
+
+    const sheet = spreadsheet.sheetsByIndex[0];
+
     //登録処理を書く
-    return false;
+    await sheet.addRow(
+      {
+        TweetURL: this.tweetURL,
+        expireDate: this.expireDate,
+      },
+      function (err) {
+        if (err) {
+        console.error(err);
+        return false;
+        }
+      },
+    );
+    return true;
   }
 
   static async all(): Promise<Array<Advertisement>> {
-    const file = process.env.SS_FILE_ID;
-    const key = process.env.SS_API_KEY;
-    const sheet = process.env.SS_SHEET_NAME;
-    const axios = new HttpService();
-    const Url = `https://sheets.googleapis.com/v4/spreadsheets/${file}/values/${sheet}/?key=${key}`;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { GoogleSpreadsheet } = require('google-spreadsheet');
+    const credential = Advertisement.credential();
+    const spreadsheet = new GoogleSpreadsheet(process.env.SS_FILE_ID);
+    spreadsheet.useServiceAccountAuth(credential);
 
-    const records = await lastValueFrom(
-      axios.get(Url).pipe(
-        map((response) => {
-          return response.data.values;
-        }),
-      ),
-    );
+    await spreadsheet.loadInfo();
+
+    const sheet = spreadsheet.sheetsByIndex[0];
+    const records = await sheet.getRows();
 
     return records.map(
-      (record) => new Advertisement(record[1], new Date(record[0])),
+      (record) =>
+        new Advertisement(record.TweetURL, new Date(record.ExpireDate)),
     );
   }
 
   public async getTest(): Promise<string> {
     return '';
+  }
+
+  private static credential(): object {
+    return {
+      type: process.env.SS_TYPE,
+      project_id: process.env.SS_PROJECT_ID,
+      private_key_id: process.env.SS_PRIVATE_KEY_ID,
+      private_key: process.env.SS_PRIVATE_KEY,
+      client_email: process.env.SS_CLIENT_EMAIL,
+      client_id: process.env.SS_CLIENT_ID,
+      auth_uri: process.env.SS_AUTH_URI,
+      token_uri: process.env.SS_TOKEN_URI,
+      auth_provider_x509_cert_url: process.env.SS_AUTH_PROVIDER_X509_CERT_URL,
+      client_x509_cert_url: process.env.SS_CLIENT_X509_CERT_URL,
+    };
   }
 }
