@@ -1,5 +1,8 @@
+import { GoogleSpreadsheet } from 'google-spreadsheet';
+import moment, { Moment } from 'moment-timezone';
+
 export class Advertisement {
-  constructor(private tweetURL: string, private expireDate: Date) {
+  constructor(private tweetURL: string, private expireDate: Moment) {
     this.tweetURL = tweetURL;
     this.expireDate = expireDate;
   }
@@ -8,13 +11,11 @@ export class Advertisement {
     return this.tweetURL;
   }
 
-  public getExpireDate(): Date {
+  public getExpireDate(): Moment {
     return this.expireDate;
   }
 
   public async register(): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { GoogleSpreadsheet } = require('google-spreadsheet');
     const credential = Advertisement.credential();
     const spreadsheet = new GoogleSpreadsheet(process.env.SS_FILE_ID);
     spreadsheet.useServiceAccountAuth(credential);
@@ -23,11 +24,15 @@ export class Advertisement {
 
     const sheet = spreadsheet.sheetsByIndex[0];
 
+    console.log(this.expireDate.format());
+
     //登録処理を書く
     await sheet.addRow(
       {
         TweetURL: this.tweetURL,
-        expireDate: this.expireDate,
+        ExpireDate: this.expireDate
+          .tz('Asia/Tokyo')
+          .format('YYYY/MM/DD HH:mm:ss'),
       },
       function (err) {
         if (err) {
@@ -40,8 +45,6 @@ export class Advertisement {
   }
 
   static async all(): Promise<Array<Advertisement>> {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { GoogleSpreadsheet } = require('google-spreadsheet');
     const credential = Advertisement.credential();
     const spreadsheet = new GoogleSpreadsheet(process.env.SS_FILE_ID);
     spreadsheet.useServiceAccountAuth(credential);
@@ -52,8 +55,7 @@ export class Advertisement {
     const records = await sheet.getRows();
 
     return records.map(
-      (record) =>
-        new Advertisement(record.TweetURL, new Date(record.ExpireDate)),
+      (record) => new Advertisement(record.TweetURL, moment(record.ExpireDate)),
     );
   }
 
